@@ -1,39 +1,35 @@
 import sqlite3
 
-# Подключаемся к базе данных (если базы нет, она будет создана)
-connection = sqlite3.connect('company.db')
-cursor = connection.cursor()
+conn = sqlite3.connect('social_network.db')
+cursor = conn.cursor()
 
-# Создание таблиц
+# Создаем таблицы
 cursor.execute('''
-CREATE TABLE IF NOT EXISTS employees (
-    employee_id INTEGER PRIMARY KEY,
-    employee_name TEXT,
-    department TEXT
+CREATE TABLE IF NOT EXISTS Users (
+    user_id INTEGER PRIMARY KEY,
+    username TEXT NOT NULL
 );
 ''')
 
 cursor.execute('''
-CREATE TABLE IF NOT EXISTS projects (
-    project_id INTEGER PRIMARY KEY,
-    project_name TEXT,
-    employee_id INTEGER,
-    FOREIGN KEY (employee_id) REFERENCES employees(employee_id)
+CREATE TABLE IF NOT EXISTS Posts (
+    post_id INTEGER PRIMARY KEY,
+    user_id INTEGER,
+    post_content TEXT,
+    likes_count INTEGER DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES Users(user_id)
 );
 ''')
 
-# Добавление тестовых данных
-cursor.execute("INSERT INTO employees (employee_name, department) VALUES ('Alice', 'IT')")
-cursor.execute("INSERT INTO employees (employee_name, department) VALUES ('Bob', 'HR')")
-cursor.execute("INSERT INTO employees (employee_name, department) VALUES ('Charlie', 'Finance')")
+# Вставляем тестовые данные
+cursor.execute("INSERT OR IGNORE INTO Users (user_id, username) VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Charlie');")
 
-cursor.execute("INSERT INTO projects (project_name, employee_id) VALUES ('Project X', 1)")
-cursor.execute("INSERT INTO projects (project_name, employee_id) VALUES ('Project Y', 2)")
+cursor.execute("INSERT OR IGNORE INTO Posts (post_id, user_id, post_content, likes_count) VALUES \
+(1, 1, 'Post by Alice 1', 5), \
+(2, 1, 'Post by Alice 2', 3), \
+(3, 2, 'Post by Bob 1', 7);")
 
-# Сохраняем изменения
-connection.commit()
+conn.commit()
+conn.close()
 
-# Закрытие соединения
-connection.close()
-
-print("База данных и таблицы успешно созданы и заполнены.")
+print("Database setup complete.")
