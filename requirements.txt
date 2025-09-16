@@ -1,8 +1,14 @@
-import sqlite3
+import psycopg2
 
-def get_courses_without_enrollments(db_path='database.db'):
-    # Подключаемся к базе
-    conn = sqlite3.connect(db_path)
+def get_courses_without_enrollments():
+    # Подключаемся к базе PostgreSQL
+    conn = psycopg2.connect(
+        dbname="your_db_name",
+        user="your_username",
+        password="your_password",
+        host="your_host",
+        port="your_port"
+    )
     cursor = conn.cursor()
 
     # SQL-запрос для нахождения курсов без регистраций
@@ -12,7 +18,7 @@ def get_courses_without_enrollments(db_path='database.db'):
     LEFT JOIN Enrollments e ON c.course_id = e.course_id
     WHERE e.course_id IS NULL;
     """
-
+    
     cursor.execute(query)
     courses = cursor.fetchall()
 
@@ -20,7 +26,6 @@ def get_courses_without_enrollments(db_path='database.db'):
     return courses
 
 if __name__ == "__main__":
-    # Получаем все курсы без регистраций
     courses = get_courses_without_enrollments()
     
     if courses:
