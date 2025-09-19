@@ -1,73 +1,62 @@
-import chromadb
-import os
-from dotenv import load_dotenv
-from chromadb.utils import embedding_functions
+import pygame
+import sys
+from config import *
+from pipe import Pipe
+from ga import Population
 
-# --- 1. Загрузка API-ключа ---
-load_dotenv()  # Загружаем переменные из файла .env
-API_KEY = os.getenv('GOOGLE_API_KEY')
+pygame.init()
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+clock = pygame.time.Clock()
+font = pygame.font.SysFont("Arial", 24)
 
-if not API_KEY:
-    raise ValueError("GOOGLE_API_KEY не найден. Убедитесь, что он есть в файле .env")
+def main():
+    population = Population()
+    pipes = [Pipe(SCREEN_WIDTH + i * 200) for i in range(3)]
+    
+    while True:
+        clock.tick(FPS)
+        screen.fill((135, 206, 235))
 
-# --- 2. Настройка ChromaDB с эмбеддингами (без использования Google Gemini) ---
-client = chromadb.Client()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
 
-# Используем встроенную эмбеддинг-функцию Chroma для создания эмбеддингов
-embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction()
+        # Обновление
+        for bird in population.birds:
+            if bird.alive:
+                bird.update(pipes)
+                for pipe in pipes:
+                    if pipe.collide(bird):
+                        bird.alive = False
 
-# Создаем коллекцию
-try:
-    collection = client.create_collection(
-        name="student_test_collection",  # Название коллекции
-        embedding_function=embedding_function  # Используем стандартную эмбеддинг-функцию
-    )
-    print("Коллекция успешно создана.")
-except chromadb.errors.UniqueConstraintError:
-    # Если коллекция уже существует, удаляем её и создаем новую
-    client.delete_collection(name="student_test_collection")
-    collection = client.create_collection(
-        name="student_test_collection",
-        embedding_function=embedding_function
-    )
-    print("Старая коллекция удалена, создана новая.")
+        for pipe in pipes:
+            pipe.update()
+            if pipe.x + pipe.width < 0:
+                pipes.remove(pipe)
+                pipes.append(Pipe(SCREEN_WIDTH + 200))
 
-# --- 3. Добавление данных (Индексация) ---
-print("Добавление документов в ChromaDB...")
+        # Отрисовка
+        for pipe in pipes:
+            pipe.draw(screen)
 
-collection.add(
-    documents=[
-        "Python - это высокоуровневый язык программирования, известный своей простотой.",
-        "SQL (Structured Query Language) используется для управления реляционными базами данных.",
-        "Велосипед - это транспортное средство, приводимое в движение мускульной силой человека.",
-        "Самое высокое здание в мире - Бурдж-Халифа."
-    ],
-    metadatas=[
-        {"source": "wiki", "topic": "programming"},
-        {"source": "textbook", "topic": "database"},
-        {"source": "dictionary", "topic": "transport"},
-        {"source": "web", "topic": "architecture"}
-    ],
-    ids=["doc1", "doc2", "doc3", "doc4"]  # Уникальные ID для каждого документа
-)
+        for bird in population.birds:
+            if bird.alive:
+                bird.draw(screen)
 
-print(f"Документы добавлены. Всего в коллекции: {collection.count()} элементов.")
+        # Текст
+        alive_count = sum(b.alive for b in population.birds)
+        gen_text = font.render(f"Generation: {population.generation}", True, (0, 0, 0))
+        alive_text = font.render(f"Alive: {alive_count}", True, (0, 0, 0))
+        screen.blit(gen_text, (10, 10))
+        screen.blit(alive_text, (10, 40))
 
-# --- 4. Тестирование запроса (Поиск) ---
-print("\n--- ТЕСТИРОВАНИЕ ЗАПРОСА ---")
+        pygame.display.flip()
 
-query_text = "Что такое язык для работы с БД?"
+        # Переход к новому поколению
+        if population.all_dead():
+            population.reproduce()
+            pipes = [Pipe(SCREEN_WIDTH + i * 200) for i in range(3)]
 
-results = collection.query(
-    query_texts=[query_text],
-    n_results=2  # Попросим 2 самых релевантных результата
-)
-
-# Выводим результаты запроса
-print(f"Результаты по запросу: '{query_text}'")
-print(results)
-
-# Выводим наиболее релевантный документ
-print("\nСамый релевантный документ:")
-print(f"Текст: {results['documents'][0][0]}")
-print(f"Источник: {results['metadatas'][0][0]['source']}")
+if __name__ == "__main__":
+    main()
