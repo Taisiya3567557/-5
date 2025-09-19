@@ -1,73 +1,68 @@
 import sqlite3
-import pandas as pd
 
-# Подключение к реальному файлу базы данных
-conn = sqlite3.connect('data.db')  # будет создан, если не существует
+# Создание подключения к базе данных
+conn = sqlite3.connect("database.db")
 cursor = conn.cursor()
 
-# Создание таблиц и вставка данных
-cursor.execute('DROP TABLE IF EXISTS Customers')
-cursor.execute('DROP TABLE IF EXISTS Employees')
-cursor.execute('DROP TABLE IF EXISTS FilteredPeople')  # если запускать повторно
-
-# Данные
-customers = [
-    (1, 'Alice', 'Berlin', 'Germany'),
-    (2, 'Bob', 'Paris', 'France'),
-    (3, 'Charlie', 'Madrid', 'Spain'),
-    (4, 'Diana', 'Munich', 'Germany'),
-]
-
-employees = [
-    (1, 'Eve', 'Paris', 'France'),
-    (2, 'Frank', 'Berlin', 'Germany'),
-    (3, 'Grace', 'Rome', 'Italy'),
-    (4, 'Heidi', 'Lyon', 'France'),
-]
-
 # Создание таблиц
-cursor.execute('''
-    CREATE TABLE Customers (
-        CustomerID INTEGER,
-        Name TEXT,
-        City TEXT,
-        Country TEXT
-    )
-''')
-cursor.executemany('INSERT INTO Customers VALUES (?, ?, ?, ?)', customers)
+cursor.executescript("""
+DROP TABLE IF EXISTS Customers;
+DROP TABLE IF EXISTS Employees;
+DROP TABLE IF EXISTS Suppliers;
 
-cursor.execute('''
-    CREATE TABLE Employees (
-        EmployeeID INTEGER,
-        Name TEXT,
-        City TEXT,
-        Country TEXT
-    )
-''')
-cursor.executemany('INSERT INTO Employees VALUES (?, ?, ?, ?)', employees)
+CREATE TABLE Customers (
+    Name TEXT,
+    Phone TEXT
+);
 
-# SQL-запрос
+CREATE TABLE Employees (
+    Name TEXT,
+    Phone TEXT
+);
+
+CREATE TABLE Suppliers (
+    Name TEXT,
+    Phone TEXT
+);
+""")
+
+# Пример данных
+cursor.executemany("INSERT INTO Customers (Name, Phone) VALUES (?, ?)", [
+    ('Анна', '123'),
+    ('Борис', None),
+    ('Вера', '555'),
+])
+
+cursor.executemany("INSERT INTO Employees (Name, Phone) VALUES (?, ?)", [
+    ('Георгий', '789'),
+    ('Анна', '123'),  # дубликат
+    ('Дина', None),
+])
+
+cursor.executemany("INSERT INTO Suppliers (Name, Phone) VALUES (?, ?)", [
+    ('Елена', '000'),
+    ('Борис', None),   # дубликат
+    ('Жанна', '555'),  # дубликат по телефону
+])
+
+# Выполняем объединение с подстановкой и удалением дубликатов
 query = """
-SELECT Name, City, Country, 'Customer' AS Role
-FROM Customers
-WHERE Country IN ('Germany', 'France')
-
-UNION
-
-SELECT Name, City, Country, 'Employee' AS Role
-FROM Employees
-WHERE Country IN ('Germany', 'France')
-ORDER BY City, Name
+SELECT DISTINCT Name, 
+       COALESCE(Phone, 'Номер не указан') AS Phone
+FROM (
+    SELECT Name, Phone FROM Customers
+    UNION ALL
+    SELECT Name, Phone FROM Employees
+    UNION ALL
+    SELECT Name, Phone FROM Suppliers
+)
 """
 
-# Чтение результата
-df = pd.read_sql_query(query, conn)
+print("Общий список всех людей с телефонами:\n")
 
-# Сохраняем результат как новую таблицу в БД
-df.to_sql('FilteredPeople', conn, if_exists='replace', index=False)
+for row in cursor.execute(query):
+    print(f"{row[0]} — {row[1]}")
 
-print("✅ Таблица 'FilteredPeople' создана в базе данных data.db")
-
-# Закрытие подключения
+# Сохраняем изменения и закрываем соединение
 conn.commit()
 conn.close()
