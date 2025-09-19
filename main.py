@@ -1,62 +1,73 @@
-import pygame
-import sys
-from config import *
-from pipe import Pipe
-from ga import Population
+import sqlite3
+import pandas as pd
 
-pygame.init()
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-clock = pygame.time.Clock()
-font = pygame.font.SysFont("Arial", 24)
+# Подключение к реальному файлу базы данных
+conn = sqlite3.connect('data.db')  # будет создан, если не существует
+cursor = conn.cursor()
 
-def main():
-    population = Population()
-    pipes = [Pipe(SCREEN_WIDTH + i * 200) for i in range(3)]
-    
-    while True:
-        clock.tick(FPS)
-        screen.fill((135, 206, 235))
+# Создание таблиц и вставка данных
+cursor.execute('DROP TABLE IF EXISTS Customers')
+cursor.execute('DROP TABLE IF EXISTS Employees')
+cursor.execute('DROP TABLE IF EXISTS FilteredPeople')  # если запускать повторно
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
+# Данные
+customers = [
+    (1, 'Alice', 'Berlin', 'Germany'),
+    (2, 'Bob', 'Paris', 'France'),
+    (3, 'Charlie', 'Madrid', 'Spain'),
+    (4, 'Diana', 'Munich', 'Germany'),
+]
 
-        # Обновление
-        for bird in population.birds:
-            if bird.alive:
-                bird.update(pipes)
-                for pipe in pipes:
-                    if pipe.collide(bird):
-                        bird.alive = False
+employees = [
+    (1, 'Eve', 'Paris', 'France'),
+    (2, 'Frank', 'Berlin', 'Germany'),
+    (3, 'Grace', 'Rome', 'Italy'),
+    (4, 'Heidi', 'Lyon', 'France'),
+]
 
-        for pipe in pipes:
-            pipe.update()
-            if pipe.x + pipe.width < 0:
-                pipes.remove(pipe)
-                pipes.append(Pipe(SCREEN_WIDTH + 200))
+# Создание таблиц
+cursor.execute('''
+    CREATE TABLE Customers (
+        CustomerID INTEGER,
+        Name TEXT,
+        City TEXT,
+        Country TEXT
+    )
+''')
+cursor.executemany('INSERT INTO Customers VALUES (?, ?, ?, ?)', customers)
 
-        # Отрисовка
-        for pipe in pipes:
-            pipe.draw(screen)
+cursor.execute('''
+    CREATE TABLE Employees (
+        EmployeeID INTEGER,
+        Name TEXT,
+        City TEXT,
+        Country TEXT
+    )
+''')
+cursor.executemany('INSERT INTO Employees VALUES (?, ?, ?, ?)', employees)
 
-        for bird in population.birds:
-            if bird.alive:
-                bird.draw(screen)
+# SQL-запрос
+query = """
+SELECT Name, City, Country, 'Customer' AS Role
+FROM Customers
+WHERE Country IN ('Germany', 'France')
 
-        # Текст
-        alive_count = sum(b.alive for b in population.birds)
-        gen_text = font.render(f"Generation: {population.generation}", True, (0, 0, 0))
-        alive_text = font.render(f"Alive: {alive_count}", True, (0, 0, 0))
-        screen.blit(gen_text, (10, 10))
-        screen.blit(alive_text, (10, 40))
+UNION
 
-        pygame.display.flip()
+SELECT Name, City, Country, 'Employee' AS Role
+FROM Employees
+WHERE Country IN ('Germany', 'France')
+ORDER BY City, Name
+"""
 
-        # Переход к новому поколению
-        if population.all_dead():
-            population.reproduce()
-            pipes = [Pipe(SCREEN_WIDTH + i * 200) for i in range(3)]
+# Чтение результата
+df = pd.read_sql_query(query, conn)
 
-if __name__ == "__main__":
-    main()
+# Сохраняем результат как новую таблицу в БД
+df.to_sql('FilteredPeople', conn, if_exists='replace', index=False)
+
+print("✅ Таблица 'FilteredPeople' создана в базе данных data.db")
+
+# Закрытие подключения
+conn.commit()
+conn.close()
